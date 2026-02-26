@@ -78,7 +78,7 @@ install_ipk_file() {
     local file="$1"
     local pm=$(detect_package_manager)
     
-    case "$pm" в
+    case "$pm" in
         apk)
             # Конвертируем ipk в apk? Нет, просто распаковываем вручную
             show_progress "Распаковка ipk файла для apk..."
@@ -171,8 +171,8 @@ install_dependencies() {
             install_package "curl"
             install_package "jq"
             install_package "coreutils-base64"
-            install_package "luci-compat"  # может не быть в apk, но попробуем
-            install_package "luci-lib-json"
+            install_package "luci-compat" 2>/dev/null || true
+            install_package "luci-lib-json" 2>/dev/null || true
             ;;
         opkg)
             opkg update
