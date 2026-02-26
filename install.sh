@@ -23,7 +23,7 @@ ensure_ui_library() {
     fi
 
     mkdir -p "$SCRIPT_DIR/lib" 2>/dev/null
-    ui_url="https://raw.githubusercontent.com/ang3el7z/luci-app-singbox-ui/$BRANCH/other/scripts/lib/ui.sh"
+    ui_url="https://raw.githubusercontent.com/jaymz665/luci-app-singbox-ui/$BRANCH/other/scripts/lib/ui.sh"
     if command -v wget >/dev/null 2>&1; then
         wget -O "$UI_PATH" "$ui_url" || return 1
     elif command -v curl >/dev/null 2>&1; then
@@ -194,7 +194,7 @@ install() {
     install_dependencies
     
     # Скачиваем нужные скрипты
-    wget -O /root/install-singbox+singbox-ui.sh https://raw.githubusercontent.com/ang3el7z/luci-app-singbox-ui/$BRANCH/other/scripts/install-singbox+singbox-ui.sh &&
+    wget -O /root/install-singbox+singbox-ui.sh https://raw.githubusercontent.com/jaymz665/luci-app-singbox-ui/$BRANCH/other/scripts/install-singbox+singbox-ui.sh &&
     chmod 0755 /root/install-singbox+singbox-ui.sh &&
     
     # Скачиваем сам пакет luci-app-singbox-ui
@@ -211,7 +211,7 @@ install() {
     esac
     
     # Пробуем скачать пакет
-    wget https://github.com/ang3el7z/luci-app-singbox-ui/releases/download/v1.4.0/luci-app-singbox-ui_all.ipk -O luci-app-singbox-ui.ipk
+    wget https://github.com/jaymz665/luci-app-singbox-ui/releases/download/v1.4.0/luci-app-singbox-ui_all.ipk -O luci-app-singbox-ui.ipk
     
     # Устанавливаем пакет
     install_ipk_file "/tmp/singbox_install/luci-app-singbox-ui.ipk"
