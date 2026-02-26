@@ -43,6 +43,68 @@ ensure_ui_library || {
 }
 trap cleanup_ui_library EXIT HUP INT TERM
 
+# Функция для определения пакетного менеджера
+detect_package_manager() {
+    if command -v apk >/dev/null 2>&1; then
+        echo "apk"
+    elif command -v opkg >/dev/null 2>&1; then
+        echo "opkg"
+    else
+        echo "unknown"
+    fi
+}
+
+# Функция установки пакета
+install_package() {
+    local pkg="$1"
+    local pm=$(detect_package_manager)
+    
+    case "$pm" in
+        apk)
+            apk add --no-cache "$pkg" 2>/dev/null || apk add "$pkg"
+            ;;
+        opkg)
+            opkg update && opkg install "$pkg"
+            ;;
+        *)
+            show_error "Неизвестный пакетный менеджер"
+            return 1
+            ;;
+    esac
+}
+
+# Функция установки локального ipk файла
+install_ipk_file() {
+    local file="$1"
+    local pm=$(detect_package_manager)
+    
+    case "$pm" в
+        apk)
+            # Конвертируем ipk в apk? Нет, просто распаковываем вручную
+            show_progress "Распаковка ipk файла для apk..."
+            local tmp_dir="/tmp/ipk_extract"
+            mkdir -p "$tmp_dir"
+            cd "$tmp_dir"
+            
+            # Распаковываем ipk (это архив ar)
+            ar -x "$file"
+            
+            # Распаковываем data.tar.gz
+            if [ -f data.tar.gz ]; then
+                tar -xzf data.tar.gz -C /
+            elif [ -f data.tar.xz ]; then
+                tar -xJf data.tar.xz -C /
+            fi
+            
+            cd /
+            rm -rf "$tmp_dir"
+            ;;
+        opkg)
+            opkg install "$file"
+            ;;
+    esac
+}
+
 # Инициализация языка / Language initialization
 init_language() {
     local script_name="install.sh"
@@ -74,6 +136,7 @@ init_language() {
         MSG_CLEANUP="Очистка файлов..."
         MSG_CLEANUP_DONE="Файлы удалены!"
         MSG_WAITING="Ожидание %d сек"
+        MSG_PM_DETECTED="Обнаружен пакетный менеджер: %s"
         ;;
     *)
         MSG_INSTALL_TITLE="Starting! ($script_name)"
@@ -84,6 +147,7 @@ init_language() {
         MSG_CLEANUP="Cleaning files..."
         MSG_CLEANUP_DONE="Files deleted!"
         MSG_WAITING="Waiting %d seconds"
+        MSG_PM_DETECTED="Detected package manager: %s"
         ;;
 esac
 }
@@ -95,17 +159,80 @@ waiting() {
     sleep "$interval"
 }
 
+# Установка зависимостей
+install_dependencies() {
+    local pm=$(detect_package_manager)
+    show_progress "$(printf "$MSG_PM_DETECTED" "$pm")"
+    
+    case "$pm" in
+        apk)
+            apk update
+            install_package "sing-box"
+            install_package "curl"
+            install_package "jq"
+            install_package "coreutils-base64"
+            install_package "luci-compat"  # может не быть в apk, но попробуем
+            install_package "luci-lib-json"
+            ;;
+        opkg)
+            opkg update
+            install_package "sing-box"
+            install_package "curl"
+            install_package "jq"
+            install_package "coreutils-base64"
+            install_package "luci-compat"
+            install_package "luci-lib-json"
+            ;;
+    esac
+}
+
 # Установка / Install
 install() {
     show_warning "$MSG_INSTALL"
+    
+    # Устанавливаем зависимости
+    install_dependencies
+    
+    # Скачиваем нужные скрипты
     wget -O /root/install-singbox+singbox-ui.sh https://raw.githubusercontent.com/ang3el7z/luci-app-singbox-ui/$BRANCH/other/scripts/install-singbox+singbox-ui.sh &&
     chmod 0755 /root/install-singbox+singbox-ui.sh &&
+    
+    # Скачиваем сам пакет luci-app-singbox-ui
+    mkdir -p /tmp/singbox_install
+    cd /tmp/singbox_install
+    
+    # Определяем архитектуру для скачивания правильного пакета
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        mips|mipsel)  PKG_ARCH="mips_24kc" ;;
+        aarch64)      PKG_ARCH="aarch64_cortex-a53" ;;
+        x86_64)       PKG_ARCH="x86_64" ;;
+        *)            PKG_ARCH="all" ;;
+    esac
+    
+    # Пробуем скачать пакет
+    wget https://github.com/ang3el7z/luci-app-singbox-ui/releases/download/v1.4.0/luci-app-singbox-ui_all.ipk -O luci-app-singbox-ui.ipk
+    
+    # Устанавливаем пакет
+    install_ipk_file "/tmp/singbox_install/luci-app-singbox-ui.ipk"
+    
+    # Копируем файлы вручную на всякий случай
+    if [ -d "/tmp/singbox_install/usr" ]; then
+        cp -r /tmp/singbox_install/usr/* /usr/ 2>/dev/null
+    fi
+    
+    cd /
+    
+    # Перезапускаем веб-сервер
+    /etc/init.d/uhttpd restart
+    
     LANG="$LANG" BRANCH="$BRANCH" sh /root/install-singbox+singbox-ui.sh
 }
 
 # Очистка файлов / Cleanup
 cleanup() {
     show_progress "$MSG_CLEANUP"
+    rm -rf /tmp/singbox_install 2>/dev/null
     rm -- "$0"
     show_success "$MSG_CLEANUP_DONE"
 }
